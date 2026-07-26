@@ -1,0 +1,70 @@
+# =============================================================================
+# Server-Override – gilt für STAGING und PRODUCTION
+#
+#   docker compose -f compose.yaml -f compose.server.yaml up -d
+#   (im Normalfall nicht von Hand, sondern über /srv/infra/bin/deploy.sh <env>)
+#
+# Beide Umgebungen laufen auf demselben Server und sind vollständig getrennt:
+#   - eigener Compose-Projektname   → eigene Container, Volumes, internes Netz
+#   - eigene Datenbank              → via backend/.env
+#   - eigene Domain                 → über den geteilten Caddy in /srv/infra
+#
+# Der Unterschied steckt einzig in ${ENVIRONMENT} (staging | production).
+# deploy.sh exportiert die Variable; von Hand entsprechend mitgeben:
+#   ENVIRONMENT=staging docker compose -f compose.yaml -f compose.server.yaml ps
+#
+# Bewusst EINE Datei statt je einer pro Umgebung: die beiden waren strukturell
+# identisch und mussten sonst dauerhaft synchron gehalten werden – eine
+# Änderung nur in einer der beiden hätte Staging und Prod auseinanderlaufen
+# lassen, ohne dass es jemand merkt.
+#
+# Dieser Stack publisht KEINE Host-Ports. Erreichbar sind die Container
+# ausschliesslich über das Netz "edge" unter ihrem Alias.
+# =============================================================================
+services:
+  backend:
+    image: ${APP_NAME:?APP_NAME fehlt in .env}-${ENVIRONMENT:?ENVIRONMENT fehlt (staging|production)}-backend:${IMAGE_TAG:-latest}
+    build:
+      target: runtime
+    environment:
+      # Auch Staging läuft als echter Prod-Build – sonst testet man etwas anderes,
+      # als später live geht.
+      NODE_ENV: production
+    restart: unless-stopped
+    volumes:
+      - uploads_data:/app/uploads
+      - logs_data:/app/logs
+      - chat_data:/app/chat-data
+      - ./deployment/certs:/app/certs:ro     # DB-CA (DATABASE_URL: ...?sslca=/app/certs/isrgrootx1.pem)
+    networks:
+      <APP_NAME>:
+      edge:
+        # Eindeutiger Name auf dem geteilten Netz – sonst kollidiert "backend"
+        # mit anderen Stacks. Der Caddy-Snippet referenziert genau diesen Alias.
+        aliases:
+          - ${APP_NAME}-${ENVIRONMENT}-backend
+    # DATABASE_URL, JWT_SECRET, SMTP_*, VAPID_*, CORS_ORIGIN … via backend/.env
+
+  frontend:
+    image: ${APP_NAME}-${ENVIRONMENT}-frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ./frontend
+      args:
+        # Volle Domain einbacken – NICHT relativ "/api" (siehe README / socketService)
+        VITE_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL fehlt, z.B. https://<APP_NAME>.ch/api}
+    restart: unless-stopped
+    networks:
+      <APP_NAME>:
+      edge:
+        aliases:
+          - ${APP_NAME}-${ENVIRONMENT}-frontend
+
+networks:
+  # Wird einmalig angelegt: docker network create edge
+  edge:
+    external: true
+
+volumes:
+  uploads_data:
+  logs_data:
+  chat_data:

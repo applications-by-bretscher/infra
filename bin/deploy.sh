@@ -2,15 +2,26 @@
 # =============================================================================
 # Generisches Deploy-Skript – mit Backup, Health-Check und automatischem Rollback.
 #
-# Dieses Skript ist NICHT app-spezifisch und kann unverändert in jedes Projekt
-# kopiert werden. Alles Projektabhängige steht in der .env (APP_NAME, DOMAIN,
-# PUBLIC_API_URL). Erwartete Konvention im Repo:
-#     compose.yaml + compose.prod.yaml + compose.staging.yaml
+# Dieses Skript ist NICHT app-spezifisch. Es liegt zentral unter
+# /srv/infra/bin/deploy.sh und bedient ALLE Apps. Es wird NICHT in die App-Repos
+# kopiert – so kann es keine auseinanderdriftenden Kopien geben.
 #
-#   ./deploy.sh production            # deployt origin/main
-#   ./deploy.sh staging               # deployt origin/development
-#   ./deploy.sh staging feature/xyz   # deployt einen beliebigen Branch/Tag/SHA
-#   ./deploy.sh production --dry-run  # zeigt nur, was passieren würde
+# Alles Projektabhängige steht in der .env der jeweiligen Umgebung:
+#   APP_NAME, DOMAIN, PUBLIC_API_URL   (Pflicht)
+#   BACKEND_DIR                        (optional, Default "backend")
+#
+# Erwartete Konvention im App-Repo:
+#   compose.yaml          gemeinsame Service-Definitionen
+#   compose.server.yaml   Server-Override für staging UND production
+#   <BACKEND_DIR>/.env    Secrets und DATABASE_URL
+#
+# Immer AUS dem App-Verzeichnis heraus aufrufen:
+#   cd /srv/apps/<app>/staging && /srv/infra/bin/deploy.sh staging
+#
+#   deploy.sh production            # deployt origin/main
+#   deploy.sh staging               # deployt origin/development
+#   deploy.sh staging feature/xyz   # deployt einen beliebigen Branch/Tag/SHA
+#   deploy.sh production --dry-run  # zeigt nur, was passieren würde
 #
 # Ablauf (die Reihenfolge ist Absicht):
 #   1. Code holen          – nur auschecken, noch nichts anfassen
@@ -37,22 +48,19 @@ done
 [ "${GIT_REF:-}" = "--dry-run" ] && GIT_REF=""
 
 case "$ENVIRONMENT" in
-    production)
-        COMPOSE_FILES=(-f compose.yaml -f compose.prod.yaml)
-        PROJECT_SUFFIX=""
-        DEFAULT_REF="main"
-        ;;
-    staging)
-        COMPOSE_FILES=(-f compose.yaml -f compose.staging.yaml)
-        PROJECT_SUFFIX="-staging"
-        DEFAULT_REF="development"
-        ;;
+    production) PROJECT_SUFFIX="";         DEFAULT_REF="main" ;;
+    staging)    PROJECT_SUFFIX="-staging"; DEFAULT_REF="development" ;;
     *)
         echo "Usage: $0 <production|staging> [git-ref] [--dry-run]" >&2
         exit 2
         ;;
 esac
 GIT_REF="${GIT_REF:-$DEFAULT_REF}"
+
+# Beide Umgebungen nutzen dieselbe Server-Compose-Datei; den Unterschied macht
+# ENVIRONMENT (Image-Namen und Netzwerk-Aliase). Export, damit compose es sieht.
+export ENVIRONMENT
+COMPOSE_FILES=(-f compose.yaml -f compose.server.yaml)
 
 # ── Pfade ────────────────────────────────────────────────────────────────────
 # Dieses Skript liegt zentral (/srv/infra/bin/deploy.sh) und bedient ALLE Apps.
@@ -65,6 +73,11 @@ BACKUP_DIR="${BACKUP_DIR:-$APP_DIR/../backups}"
 STATE_FILE="$APP_DIR/.deploy-state"
 BACKUP_RETENTION=10
 
+# Verzeichnis des Backends innerhalb der App. Nicht fest verdrahten – nicht jede
+# App nennt es gleich. Überschreibbar in der .env der Umgebung:
+#   BACKEND_DIR=api
+BACKEND_DIR="${BACKEND_DIR:-backend}"
+
 cd "$APP_DIR"
 
 log()  { echo -e "\n\033[1;34m==>\033[0m $*"; }
@@ -74,16 +87,24 @@ ok()   { echo -e "\033[1;32m[ok]\033[0m $*"; }
 
 # ── Vorbedingungen ───────────────────────────────────────────────────────────
 [ -f "$APP_DIR/.env" ] || { fail "Es fehlt $APP_DIR/.env (APP_NAME, DOMAIN, PUBLIC_API_URL)."; exit 1; }
-[ -f "$APP_DIR/010_backend/.env" ] || { fail "Es fehlt $APP_DIR/010_backend/.env (DATABASE_URL, Secrets)."; exit 1; }
-docker network inspect edge >/dev/null 2>&1 || {
-    fail "Docker-Netzwerk 'edge' fehlt. Einmalig anlegen: docker network create edge"
-    exit 1
-}
 
+# .env ZUERST einlesen – sie darf BACKEND_DIR überschreiben, das direkt danach
+# geprüft wird.
 # shellcheck disable=SC1091
 set -a; source "$APP_DIR/.env"; set +a
 : "${APP_NAME:?APP_NAME fehlt in .env}"
 : "${DOMAIN:?DOMAIN fehlt in .env}"
+
+BACKEND_ENV="$APP_DIR/$BACKEND_DIR/.env"
+[ -f "$BACKEND_ENV" ] || {
+    fail "Es fehlt $BACKEND_ENV (DATABASE_URL, Secrets)."
+    fail "Heisst der Backend-Ordner anders? Dann BACKEND_DIR=<ordner> in $APP_DIR/.env setzen."
+    exit 1
+}
+docker network inspect edge >/dev/null 2>&1 || {
+    fail "Docker-Netzwerk 'edge' fehlt. Einmalig anlegen: docker network create edge"
+    exit 1
+}
 
 PROJECT_NAME="${APP_NAME}${PROJECT_SUFFIX}"
 COMPOSE=(docker compose -p "$PROJECT_NAME" "${COMPOSE_FILES[@]}")
@@ -193,14 +214,14 @@ else
     # eval-barer Code - Sonderzeichen wie ' oder " brauchen so kein Escaping.
     # (Das JS enthaelt bewusst KEINE einfachen Anfuehrungszeichen.)
     DB_INFO="$(
-        docker run --rm --env-file "$APP_DIR/010_backend/.env" node:20-bookworm-slim \
+        docker run --rm --env-file "$BACKEND_ENV" node:20-bookworm-slim \
             node -e 'const u=new URL(process.env.DATABASE_URL);process.stdout.write([u.hostname,u.port||"3306",decodeURIComponent(u.username),decodeURIComponent(u.password),u.pathname.replace(/^\//,"")].join("\n"))' \
             2>/dev/null
     )" || DB_INFO=""
 
     if [ -z "$DB_INFO" ]; then
         fail "DATABASE_URL konnte nicht gelesen werden - Deploy abgebrochen."
-        fail "Ohne Backup wird nicht migriert. Pruefe 010_backend/.env."
+        fail "Ohne Backup wird nicht migriert. Pruefe $BACKEND_ENV."
         exit 1
     fi
 

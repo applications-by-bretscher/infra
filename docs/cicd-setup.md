@@ -117,17 +117,28 @@ Danach liegt dort:
 
 | Pfad | Zweck |
 |---|---|
-| `/srv/infra/compose.yaml` | Edge-Router-Stack |
+| `/srv/infra/compose.yaml` | geteilte Dienste: Caddy, MySQL, Adminer, Ollama, Whisper |
 | `/srv/infra/caddy/Caddyfile` | Basis-Konfiguration |
 | `/srv/infra/caddy/conf.d/` | Routing-Snippets der Apps (kommen aus den App-Repos, nicht versioniert) |
 | `/srv/infra/bin/deploy.sh` | zentrales Deploy-Skript für **alle** Apps |
+| `/srv/infra/mysql/init/` | SQL, das beim **ersten** Start der Datenbank läuft |
+
+Konfiguration anlegen — ohne sie startet MySQL nicht:
+```bash
+cp /srv/infra/.env.example /srv/infra/.env
+nano /srv/infra/.env        # MYSQL_ROOT_PASSWORD setzen: openssl rand -base64 24
+```
 
 Starten und prüfen:
 ```bash
 docker compose -f /srv/infra/compose.yaml up -d
-docker compose -f /srv/infra/compose.yaml exec caddy \
-  caddy validate --config /etc/caddy/Caddyfile
+docker compose -f /srv/infra/compose.yaml ps
+```
 
+Der erste Start baut Whisper und lädt ~3 GB Modelldaten — das dauert einige
+Minuten. Fortschritt: `docker compose -f /srv/infra/compose.yaml logs -f whisper`
+
+```bash
 # Erwartung: 404 mit Hinweistext (es läuft ja noch keine App)
 curl -i -H "Host: irgendwas.ch" http://localhost:8080/
 ```
@@ -146,13 +157,37 @@ curl -i -H "Host: irgendwas.ch" http://localhost:8080/
 
 ## Schritt 4 — Datenbanken
 
-Auf der managed MySQL zwei getrennte Datenbanken. Staging darf **nie** auf die
-Prod-Daten zeigen:
+Die Datenbanken liegen im zentralen MySQL aus Schritt 3. Details, Backups und
+Weboberfläche: [`database.md`](database.md).
 
-```sql
-CREATE DATABASE musig_elgg_staging CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
--- musig_elgg (Produktion) existiert bereits
+Pro App und Umgebung eine eigene Datenbank **und** einen eigenen Benutzer, der
+nur auf diese eine Datenbank darf:
+
+```bash
+docker compose -f /srv/infra/compose.yaml exec mysql \
+  mysql -uroot -p -e "
+    CREATE DATABASE IF NOT EXISTS musig_elgg_staging
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE USER IF NOT EXISTS 'musig_elgg_staging'@'%' IDENTIFIED BY 'PASSWORT';
+    GRANT ALL PRIVILEGES ON musig_elgg_staging.* TO 'musig_elgg_staging'@'%';
+    FLUSH PRIVILEGES;"
 ```
+
+> Kein `GRANT ALL ON *.*` — sonst könnte eine kompromittierte App die Daten
+> aller anderen lesen.
+
+**Produktion bleibt vorerst extern** und zieht später als eigener, geplanter
+Schritt um (inklusive Datenmigration und Backup-Konzept). Bis dahin zeigt die
+Prod-`DATABASE_URL` weiter auf den bisherigen Server.
+
+### Weboberfläche einrichten
+
+Adminer läuft bereits im infra-Stack. Damit er erreichbar wird:
+
+1. `caddy/conf.d/adminer.caddy` auf die gewünschte Domain anpassen
+2. Auf hades den VirtualHost aus `templates/apache-vhost-adminer.conf` anlegen —
+   **mit HTTP-Basic-Auth**, siehe Kommentare in der Vorlage
+3. `docker compose -f /srv/infra/compose.yaml exec caddy caddy reload --config /etc/caddy/Caddyfile`
 
 ---
 
@@ -185,8 +220,8 @@ DOMAIN=staging.musig-elgg.ch
 PUBLIC_API_URL=https://staging.musig-elgg.ch/api
 ```
 
-**`production/010_backend/.env`** und **`staging/010_backend/.env`** aus
-`010_backend/.env.example` erzeugen. Unterschiede pro Umgebung:
+**`production/backend/.env`** und **`staging/backend/.env`** aus
+`backend/.env.example` erzeugen. Unterschiede pro Umgebung:
 
 | Variable | production | staging |
 |---|---|---|
@@ -393,14 +428,14 @@ immer gefahrlos.
 ```bash
 cd /srv/apps/musig-elgg/production
 
-docker compose -p musig-elgg -f compose.yaml -f compose.prod.yaml ps
-docker compose -p musig-elgg -f compose.yaml -f compose.prod.yaml logs -f backend
+ENVIRONMENT=production docker compose -p musig-elgg -f compose.yaml -f compose.server.yaml ps
+ENVIRONMENT=production docker compose -p musig-elgg -f compose.yaml -f compose.server.yaml logs -f backend
 
 cat .deploy-state           # aktuell laufender Image-Tag
 ls -lt ../backups/          # vorhandene Backups
 
 # Manueller Rollback auf einen beliebigen früheren Tag:
-IMAGE_TAG=<tag> docker compose -p musig-elgg -f compose.yaml -f compose.prod.yaml up -d --no-build
+ENVIRONMENT=production IMAGE_TAG=<tag> docker compose -p musig-elgg -f compose.yaml -f compose.server.yaml up -d --no-build
 
 # Edge-Router
 docker compose -f /srv/infra/compose.yaml logs --tail 50 caddy

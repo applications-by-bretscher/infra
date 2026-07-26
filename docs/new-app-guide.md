@@ -62,8 +62,7 @@ Aus `templates/` dieses Repos:
 
 | Von | Nach | Anpassen |
 |---|---|---|
-| `compose.prod.yaml` | `compose.prod.yaml` | `<INTERNAL_NETWORK>`, ggf. Volumes |
-| `compose.staging.yaml` | `compose.staging.yaml` | dito |
+| `compose.server.yaml` | `compose.server.yaml` | `<INTERNAL_NETWORK>`, ggf. Volumes |
 | `env.example` | `.env.example` | `APP_NAME`, Domains |
 | `github-workflow-deploy.yml` | `.github/workflows/deploy.yml` | nur `app:` |
 | `caddy-snippet.caddy` | `deployment/caddy/<app>.production.caddy` | Domain, `<APP_NAME>`, `<ENV>` |
@@ -125,8 +124,8 @@ Auf **argos**:
 sudo mkdir -p /srv/apps/meine-app/backups
 cd /srv/apps/meine-app
 
-git clone -b main        git@github.com:<ORG>/meine-app.git production
-git clone -b development git@github.com:<ORG>/meine-app.git staging
+git clone -b main        git@github.com:applications-by-bretscher/meine-app.git production
+git clone -b development git@github.com:applications-by-bretscher/meine-app.git staging
 ```
 
 Dann die vier `.env`-Dateien anlegen (gitignored, bleiben dauerhaft liegen):
@@ -145,7 +144,7 @@ DOMAIN=staging.meine-app.ch
 PUBLIC_API_URL=https://staging.meine-app.ch/api
 ```
 
-**`production/010_backend/.env`** und **`staging/010_backend/.env`** aus der
+**`production/backend/.env`** und **`staging/backend/.env`** aus der
 `.env.example` der App erzeugen. Pro Umgebung unterschiedlich:
 
 | Variable | production | staging |
@@ -272,4 +271,4 @@ Version muss weiterlaufen. Erst wenn das klappt, ist das Sicherheitsnetz bewiese
 | „Netzwerk 'edge' fehlt" | `docker network create edge` auf argos |
 | Deploy bricht bei „Backup fehlgeschlagen" ab | `DATABASE_URL` falsch oder DB nicht erreichbar. Absicht: ohne Sicherung wird nicht migriert |
 | Workflow wartet ewig | Runner-Dienst auf hades prüfen: `sudo ./svc.sh status` |
-| Staging schreibt in Prod-Daten | `DATABASE_URL` in `staging/010_backend/.env` prüfen — **sofort stoppen** |
+| Staging schreibt in Prod-Daten | `DATABASE_URL` in `staging/backend/.env` prüfen — **sofort stoppen** |

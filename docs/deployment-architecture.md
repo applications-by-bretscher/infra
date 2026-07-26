@@ -85,7 +85,7 @@ das wissen, sonst hält es die Caddy-IP für die Client-IP:
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
 ```
 
-Auf dem Server gehört also `TRUST_PROXY_HOPS=2` in die `010_backend/.env`. Steht dort
+Auf dem Server gehört also `TRUST_PROXY_HOPS=2` in die `backend/.env`. Steht dort
 `1`, sehen Rate-Limiting, Audit-Logs und Geo-Analytics für **alle** Nutzer dieselbe
 IP — das Rate-Limit würde dann faktisch alle gemeinsam sperren. Ein zu hoher Wert ist
 umgekehrt auch falsch: dann liesse sich die IP vom Client fälschen.
@@ -156,7 +156,7 @@ getrennt hält — auch die Volumes. Ein `down -v` auf Staging kann Prod nicht a
 | Datei | Inhalt | Im Git? |
 |-------|--------|---------|
 | `.env` | `APP_NAME`, `DOMAIN`, `PUBLIC_API_URL` | nein (nur `.env.example`) |
-| `010_backend/.env` | Secrets, `DATABASE_URL` | nein |
+| `backend/.env` | Secrets, `DATABASE_URL` | nein |
 | `.deploy-state` | letzter erfolgreicher Image-Tag | nein |
 | `compose*.yaml`, `deploy.sh` | Ablauf und Struktur | ja |
 

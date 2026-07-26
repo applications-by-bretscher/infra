@@ -3,7 +3,7 @@
 # Kopieren nach: .github/workflows/deploy.yml im neuen Repo.
 #
 # Ersetzen:
-#   <ORG>        Name der GitHub-Organisation
+#   applications-by-bretscher        Name der GitHub-Organisation
 #   <APP_NAME>   identisch zum APP_NAME in der .env und zum Verzeichnis
 #                /srv/apps/<APP_NAME>/ auf dem Server
 #

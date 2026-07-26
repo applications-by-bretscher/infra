@@ -7,12 +7,12 @@ Schritt-für-Schritt-Anleitung: [`docs/new-app-guide.md`](../docs/new-app-guide.
 
 | Datei                        | Ziel                                  | Anpassen?                        |
 |------------------------------|---------------------------------------|----------------------------------|
-| `compose.prod.yaml`          | `compose.prod.yaml` im App-Repo       | nur bei anderen Services/Volumes |
-| `compose.staging.yaml`       | `compose.staging.yaml` im App-Repo    | dito                             |
+| `compose.server.yaml`        | `compose.server.yaml` im App-Repo     | nur bei anderen Services/Volumes |
 | `env.example`                | `.env.example` im App-Repo            | `APP_NAME`, Domains              |
 | `github-workflow-deploy.yml` | `.github/workflows/deploy.yml`        | nur `app:`                       |
 | `caddy-snippet.caddy`        | `deployment/caddy/<app>.<env>.caddy` → auf **argos** nach `/srv/infra/caddy/conf.d/` | Domain, `<APP_NAME>`, `<ENV>` |
 | `apache-vhost-hades.conf`    | auf **hades** nach `/etc/apache2/sites-available/` | `<DOMAIN>`, `<ARGOS>`, `<PORT>` |
+| `apache-vhost-adminer.conf`  | nur EINMAL für die DB-Oberfläche auf **hades** | `<DOMAIN>`, `<ARGOS>`, `<PORT>` |
 
 **`deploy.sh` wird bewusst nicht kopiert.** Es liegt zentral unter
 `/srv/infra/bin/deploy.sh` und bedient alle Apps. Alles Projektabhängige liest es
@@ -30,7 +30,7 @@ Damit die Vorlagen ohne Umbau passen, sollte die App diese Konventionen erfülle
 2. Der **`backend`-Service hat einen Healthcheck** — darauf stützt sich der Deploy,
    um zu entscheiden, ob eine neue Version gesund ist. Ohne Healthcheck kein Rollback-Schutz.
 3. Ein **mehrstufiges Dockerfile** mit einem `runtime`-Target (bzw. das Target in
-   `compose.prod.yaml` anpassen).
+   `compose.server.yaml` anpassen).
 4. Datenbank-Migrationen laufen über einen Befehl, der **idempotent** ist
    (z.B. `prisma migrate deploy`).
 5. Die App wertet **`X-Forwarded-*`-Header** aus und kennt die Anzahl Proxy-Hops

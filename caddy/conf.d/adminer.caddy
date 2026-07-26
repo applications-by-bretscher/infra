@@ -1,0 +1,20 @@
+# =============================================================================
+# Routing für die Datenbank-Weboberfläche (Adminer).
+#
+# Ausnahme von der Regel: Dieses Snippet ist versioniert (in .gitignore
+# ausgenommen), weil Adminer zur Infrastruktur gehört und nicht zu einer App.
+#
+# Domain unten anpassen, falls eine andere verwendet wird.
+# TLS und Passwortschutz macht Apache auf hades – siehe
+# templates/apache-vhost-adminer.conf.
+# =============================================================================
+http://db.letsbuild.ch {
+	encode gzip
+
+	# Nicht indexieren lassen
+	header X-Robots-Tag "noindex, nofollow"
+
+	reverse_proxy adminer:8080 {
+		header_up X-Forwarded-Proto https
+	}
+}

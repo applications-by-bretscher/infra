@@ -44,6 +44,54 @@ services:
     networks:
       - edge
 
+  # ── MySQL – zentrale Datenbank für alle Apps ────────────────────────────────
+  # Eine Instanz, viele Datenbanken (eine je App und Umgebung):
+  #   musig_elgg_staging · rotary_staging · …
+  #
+  # Erreichbar für die App-Container über das edge-Netz als Host "mysql".
+  # Der Host-Port ist standardmässig an 127.0.0.1 gebunden – die DB ist damit
+  # NICHT aus dem Netz erreichbar, wohl aber lokal für Dumps und Imports.
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD fehlt in /srv/infra/.env}
+    command:
+      # utf8mb4 als Standard – sonst scheitern Emojis und Sonderzeichen
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "${MYSQL_BIND_ADDRESS:-127.0.0.1}:${MYSQL_HOST_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # SQL-Dateien hier ablegen, um beim ERSTEN Start Datenbanken anzulegen.
+      # Wirkt nur bei leerem Volume – später von Hand oder über Adminer arbeiten.
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - edge
+
+  # ── Adminer – Weboberfläche für die Datenbank ───────────────────────────────
+  # Erreichbar über hades unter einer eigenen Domain, dort mit HTTP-Basic-Auth
+  # geschützt (siehe templates/apache-vhost-adminer.conf). Ein offenes
+  # DB-Webinterface ist eines der häufigsten Einfallstore – deshalb NIE ohne
+  # vorgelagerte Authentifizierung veröffentlichen.
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - edge
+
   # ── Ollama (LLM) ────────────────────────────────────────────────────────────
   # Läuft standardmässig auf CPU. Mit echter NVIDIA-GPU zusätzlich
   # compose.gpu.yaml einbinden.
@@ -78,3 +126,6 @@ networks:
 volumes:
   caddy_config:
   ollama_data:
+  # Die Nutzdaten aller App-Datenbanken. Dieses Volume ist der wertvollste Teil
+  # des Servers – regelmässige Sicherung einrichten (siehe docs/database.md).
+  mysql_data:
