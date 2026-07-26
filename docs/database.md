@@ -39,12 +39,28 @@ Der erste Start dauert etwas (MySQL initialisiert sich) und spielt
 Pro App und Umgebung ein eigener Benutzer, der **nur** auf seine Datenbank darf.
 So kann eine kompromittierte App nicht die Daten der anderen lesen.
 
+> ### Passwörter: hex, nicht base64
+>
+> Das Passwort landet in der `DATABASE_URL` — also **in einer URL**. Zeichen wie
+> `/ @ : % ? #` haben dort eine Bedeutung und zerlegen die URL falsch. Bei
+> `mysql://user:ab/cd@mysql:3306/db` endet die Auswertung am `/`, das Passwort
+> wird zu `ab`, und die Anmeldung scheitert mit `Access denied`.
+>
+> `openssl rand -base64` erzeugt genau solche Zeichen (`+`, `/`, `=`). Deshalb:
+>
+> ```bash
+> openssl rand -hex 24
+> ```
+>
+> Ergibt nur `0-9a-f` und ist in jeder URL unproblematisch. Wer ein vorhandenes
+> Passwort mit Sonderzeichen behalten will, muss es URL-kodieren (`/` → `%2F`).
+
 ```bash
 docker compose -f /srv/infra/compose.yaml exec mysql \
   mysql -uroot -p -e "
     CREATE DATABASE IF NOT EXISTS meine_app_staging
       CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-    CREATE USER IF NOT EXISTS 'meine_app_staging'@'%' IDENTIFIED BY 'PASSWORT';
+    CREATE USER IF NOT EXISTS 'meine_app_staging'@'%' IDENTIFIED BY 'PASSWORT';  -- openssl rand -hex 24
     GRANT ALL PRIVILEGES ON meine_app_staging.* TO 'meine_app_staging'@'%';
     FLUSH PRIVILEGES;"
 ```

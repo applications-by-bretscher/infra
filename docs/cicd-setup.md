@@ -126,7 +126,7 @@ Danach liegt dort:
 Konfiguration anlegen — ohne sie startet MySQL nicht:
 ```bash
 cp /srv/infra/.env.example /srv/infra/.env
-nano /srv/infra/.env        # MYSQL_ROOT_PASSWORD setzen: openssl rand -base64 24
+nano /srv/infra/.env        # MYSQL_ROOT_PASSWORD setzen: openssl rand -hex 24
 ```
 
 Starten und prüfen:
@@ -168,7 +168,7 @@ docker compose -f /srv/infra/compose.yaml exec mysql \
   mysql -uroot -p -e "
     CREATE DATABASE IF NOT EXISTS musig_elgg_staging
       CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-    CREATE USER IF NOT EXISTS 'musig_elgg_staging'@'%' IDENTIFIED BY 'PASSWORT';
+    CREATE USER IF NOT EXISTS 'musig_elgg_staging'@'%' IDENTIFIED BY 'PASSWORT';  -- openssl rand -hex 24
     GRANT ALL PRIVILEGES ON musig_elgg_staging.* TO 'musig_elgg_staging'@'%';
     FLUSH PRIVILEGES;"
 ```
