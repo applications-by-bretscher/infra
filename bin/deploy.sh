@@ -183,8 +183,10 @@ rollback() {
         echo
         warn "Falls die Datenbank durch eine Migration beschaedigt wurde, kann sie so"
         warn "zurueckgespielt werden (VORSICHT: verwirft alle Daten seit dem Backup):"
-        echo "  gunzip -c '$BACKUP_FILE' | docker run --rm -i mysql:8.0 \\"
-        echo "    mysql -h '<db-host>' -u '<db-user>' -p'<db-pass>' '<db-name>'"
+        echo "  gunzip -c '$BACKUP_FILE' \\"
+        echo "    | docker run --rm -i --network edge -e MYSQL_PWD='<passwort>' mysql:8.0 \\"
+        echo "      mysql -h '${DB_HOST:-<db-host>}' -P '${DB_PORT:-3306}' -u '${DB_USER:-<db-user>}' '${DB_NAME:-<db-name>}'"
+        warn "Das Passwort steht in $BACKEND_ENV (DATABASE_URL)."
     fi
 }
 
@@ -251,17 +253,28 @@ else
         exit 1
     fi
     BACKUP_FILE="$BACKUP_DIR/${ENVIRONMENT}_$(date +%Y%m%d-%H%M%S)_${NEW_TAG}.sql.gz"
-    if docker run --rm -e MYSQL_PWD="$DB_PASS" mysql:8.0 \
+    DUMP_ERR="$(mktemp)"
+    # --network edge ist zwingend: die zentrale Datenbank ist nur dort unter dem
+    # Namen "mysql" erreichbar. Eine externe DB waere von hier ebenfalls erreichbar.
+    if docker run --rm --network edge -e MYSQL_PWD="$DB_PASS" mysql:8.0 \
         mysqldump -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" \
             --single-transaction --quick --no-tablespaces \
-            --set-gtid-purged=OFF "$DB_NAME" 2>/dev/null | gzip > "$BACKUP_FILE"
+            --set-gtid-purged=OFF "$DB_NAME" 2>"$DUMP_ERR" | gzip > "$BACKUP_FILE"
     then
+        rm -f "$DUMP_ERR"
         ok "Backup: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
         ls -1t "$BACKUP_DIR/${ENVIRONMENT}_"*.sql.gz 2>/dev/null \
             | tail -n +$((BACKUP_RETENTION + 1)) | xargs -r rm -f
     else
         rm -f "$BACKUP_FILE"; BACKUP_FILE=""
         fail "Backup fehlgeschlagen - Deploy abgebrochen (ohne Sicherung wird nicht migriert)."
+        fail "Verbindung: $DB_USER@$DB_HOST:$DB_PORT/$DB_NAME"
+        # Meldung von mysqldump zeigen - ohne sie sucht man im Dunkeln
+        if [ -s "$DUMP_ERR" ]; then
+            fail "mysqldump meldet:"
+            sed 's/^/      /' "$DUMP_ERR" >&2
+        fi
+        rm -f "$DUMP_ERR"
         exit 1
     fi
 fi
