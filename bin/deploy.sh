@@ -59,6 +59,8 @@ GIT_REF="${GIT_REF:-$DEFAULT_REF}"
 
 # Beide Umgebungen nutzen dieselbe Server-Compose-Datei; den Unterschied macht
 # ENVIRONMENT (Image-Namen und Netzwerk-Aliase). Export, damit compose es sieht.
+# Wert merken: die .env wird spaeter eingelesen und darf ihn nicht ueberschreiben.
+ENVIRONMENT_ARG="$ENVIRONMENT"
 export ENVIRONMENT
 COMPOSE_FILES=(-f compose.yaml -f compose.server.yaml)
 
@@ -92,6 +94,13 @@ ok()   { echo -e "\033[1;32m[ok]\033[0m $*"; }
 # geprüft wird.
 # shellcheck disable=SC1091
 set -a; source "$APP_DIR/.env"; set +a
+
+# Das Argument gewinnt IMMER gegen die .env. Stuende dort versehentlich
+# ENVIRONMENT=production, wuerde "deploy.sh staging" sonst die Produktion
+# ueberschreiben - ein Fehler, den man erst nach dem Schaden bemerkt.
+ENVIRONMENT="$ENVIRONMENT_ARG"
+export ENVIRONMENT
+
 : "${APP_NAME:?APP_NAME fehlt in .env}"
 : "${DOMAIN:?DOMAIN fehlt in .env}"
 
