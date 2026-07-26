@@ -1,0 +1,23 @@
+# =============================================================================
+# Basis-Konfiguration des geteilten Edge-Proxys.
+# Diese Datei selbst enthält KEINE App-Konfiguration – jede App/Umgebung bringt
+# ihr eigenes Snippet in conf.d/ mit. So kommt eine neue App dazu, ohne dass
+# hier etwas geändert werden muss.
+# =============================================================================
+
+# Optional: E-Mail für Let's-Encrypt-Ablaufwarnungen. Dann diesen Block einkommentieren:
+# {
+# 	email admin@musig-elgg.ch
+# }
+
+# Alle App-Snippets einlesen (musig-elgg.production.caddy, …staging.caddy, weitere Apps …)
+import /etc/caddy/conf.d/*.caddy
+
+# Auffangblock für Domains, für die es KEIN Snippet gibt.
+# Ohne ihn antwortet Caddy mit einer leeren 200 – das sieht wie Erfolg aus und
+# verschleiert ein fehlendes oder nicht neu geladenes Snippet (der Smoke-Test im
+# deploy.sh würde fälschlich bestehen). Konkretere Host-Blöcke haben Vorrang,
+# dieser Block greift also wirklich nur bei unbekannten Domains.
+http:// {
+	respond "Keine App fuer diese Domain konfiguriert (Caddy-Snippet fehlt?)" 404
+}

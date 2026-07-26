@@ -1,0 +1,44 @@
+# =============================================================================
+# VORLAGE – Deploy-Workflow einer App
+# Kopieren nach: .github/workflows/deploy.yml im neuen Repo.
+#
+# Ersetzen:
+#   <ORG>        Name der GitHub-Organisation
+#   <APP_NAME>   identisch zum APP_NAME in der .env und zum Verzeichnis
+#                /srv/apps/<APP_NAME>/ auf dem Server
+#
+# Mehr ist nicht nötig: Die gesamte Deploy-Logik steckt im zentralen Workflow
+# der Organisation und in deploy.sh auf dem Server.
+# =============================================================================
+name: Deploy
+
+on:
+  push:
+    branches: [main, development]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Zielumgebung'
+        required: true
+        type: choice
+        options: [staging, production]
+        default: staging
+      ref:
+        description: 'Branch/Tag/SHA (leer = aktueller Branch)'
+        required: false
+        type: string
+
+# Pro Umgebung nur ein Deploy gleichzeitig – ein zweiter wartet, statt dem
+# ersten mitten im Umschalten dazwischenzufunken.
+concurrency:
+  group: deploy-${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: applications-by-bretscher/infra/.github/workflows/docker-deploy.yml@main
+    with:
+      app: <APP_NAME>
+      environment: ${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
+      ref: ${{ inputs.ref || github.ref_name }}
+    secrets: inherit

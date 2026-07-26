@@ -1,0 +1,84 @@
+# =============================================================================
+# ZENTRALER, WIEDERVERWENDBARER DEPLOY-WORKFLOW
+#
+# Jede App ruft ihn mit ~15 Zeilen auf (siehe templates/github-workflow-deploy.yml):
+#   uses: applications-by-bretscher/infra/.github/workflows/docker-deploy.yml@main
+#
+# Läuft auf dem self-hosted Runner (hades) und macht genau eines: per SSH das
+# zentrale deploy.sh auf argos starten. Die gesamte Deploy-Logik (Backup,
+# Migration, Health-Check, Rollback) steckt in bin/deploy.sh – der Workflow
+# bleibt dumm und damit wartungsarm.
+#
+# Benötigte Org-Secrets:
+#   DOCKER_HOST_SSH_KEY   privater SSH-Key hades → argos
+#   DOCKER_HOST           Hostname des Docker-Servers (intern)
+#   DOCKER_HOST_USER      SSH-Benutzer auf dem Docker-Server
+# =============================================================================
+name: Docker Deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: 'App-Name = Verzeichnis unter /srv/apps'
+        required: true
+        type: string
+      environment:
+        description: 'production oder staging'
+        required: true
+        type: string
+      ref:
+        description: 'Branch/Tag/SHA, der deployt wird'
+        required: true
+        type: string
+      app_root:
+        description: 'Basisverzeichnis der Apps auf dem Docker-Server'
+        required: false
+        default: '/srv/apps'
+        type: string
+      deploy_script:
+        description: 'Zentrales Deploy-Skript auf dem Docker-Server'
+        required: false
+        default: '/srv/infra/bin/deploy.sh'
+        type: string
+      timeout_minutes:
+        required: false
+        default: 30
+        type: number
+    secrets:
+      DOCKER_HOST_SSH_KEY:
+        required: true
+      DOCKER_HOST:
+        required: true
+      DOCKER_HOST_USER:
+        required: true
+
+jobs:
+  deploy:
+    name: ${{ inputs.app }} / ${{ inputs.environment }}
+    runs-on: self-hosted
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    steps:
+      - name: SSH-Key bereitstellen
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          # Eigener Key-Name pro Run – parallele Jobs stören sich nicht gegenseitig
+          KEY=~/.ssh/deploy_${{ github.run_id }}
+          printf '%s\n' "${{ secrets.DOCKER_HOST_SSH_KEY }}" > "$KEY"
+          chmod 600 "$KEY"
+          echo "SSH_KEY=$KEY" >> "$GITHUB_ENV"
+          # Hostkey vertrauensvoll einmalig lernen (interner Server)
+          ssh-keyscan -H "${{ secrets.DOCKER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy auslösen
+        run: |
+          set -euo pipefail
+          ssh -i "$SSH_KEY" -o BatchMode=yes \
+            "${{ secrets.DOCKER_HOST_USER }}@${{ secrets.DOCKER_HOST }}" \
+            "cd '${{ inputs.app_root }}/${{ inputs.app }}/${{ inputs.environment }}' \
+             && '${{ inputs.deploy_script }}' '${{ inputs.environment }}' '${{ inputs.ref }}'"
+
+      - name: SSH-Key aufräumen
+        if: always()
+        run: rm -f "${SSH_KEY:-}"

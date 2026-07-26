@@ -1,0 +1,52 @@
+# =============================================================================
+# VORLAGE – Prod-Override
+# Kopieren nach: compose.prod.yaml im Wurzelverzeichnis der neuen App.
+#
+# Anpassen:
+#   - <INTERNAL_NETWORK> → Name des internen Netzwerks aus deiner compose.yaml
+#   - Volumes/Mounts, falls die App andere persistente Pfade hat
+#   - build.target, falls dein Dockerfile das runtime-Target anders nennt
+#
+# NICHT anpassen: ${APP_NAME} und ${IMAGE_TAG} – die kommen aus der .env bzw.
+# vom deploy.sh und sorgen dafür, dass Rollbacks funktionieren.
+# =============================================================================
+services:
+  backend:
+    image: ${APP_NAME:?APP_NAME fehlt in .env}-backend:${IMAGE_TAG:-latest}
+    build:
+      target: runtime
+    environment:
+      NODE_ENV: production
+    restart: unless-stopped
+    volumes:
+      - uploads_data:/app/uploads
+      - logs_data:/app/logs
+    networks:
+      <INTERNAL_NETWORK>:
+      edge:
+        # Eindeutig pro App UND Umgebung – sonst kollidiert es mit anderen Stacks
+        # auf dem geteilten Netz. Der Caddy-Snippet referenziert genau diesen Namen.
+        aliases:
+          - ${APP_NAME}-production-backend
+
+  frontend:
+    image: ${APP_NAME}-frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ./020_frontend
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL fehlt in .env}
+    restart: unless-stopped
+    networks:
+      <INTERNAL_NETWORK>:
+      edge:
+        aliases:
+          - ${APP_NAME}-production-frontend
+
+networks:
+  # Einmalig auf dem Server angelegt: docker network create edge
+  edge:
+    external: true
+
+volumes:
+  uploads_data:
+  logs_data:

@@ -1,0 +1,47 @@
+# =============================================================================
+# VORLAGE – Caddy-Routing-Snippet (läuft auf argos)
+#
+# Pro App UND Umgebung eine Datei. Kopieren nach:
+#   im Repo:      deployment/caddy/<app>.<environment>.caddy
+#   auf argos:    /srv/infra/caddy/conf.d/<app>.<environment>.caddy
+#
+# Ersetzen:
+#   <DOMAIN>      z.B. meine-app.ch  bzw.  staging.meine-app.ch
+#   <APP_NAME>    Wert aus der .env
+#   <ENV>         production  oder  staging
+#
+# Danach neu laden (ohne Downtime für andere Apps):
+#   docker compose -f /srv/infra/compose.yaml exec caddy \
+#     caddy reload --config /etc/caddy/Caddyfile
+#
+# WICHTIG – "http://" nicht weglassen: TLS terminiert bereits Apache auf hades.
+# Ohne das Präfix versucht Caddy, selbst ein Zertifikat zu holen, was hier nie
+# funktionieren kann (Port 80 aus dem Internet erreicht argos nicht direkt).
+#
+# Die Upstream-Namen sind die Netzwerk-Aliase aus compose.<env>.yaml.
+# Stimmen sie nicht überein, antwortet Caddy mit 502 – häufigste Fehlerquelle.
+# =============================================================================
+http://<DOMAIN> {
+	encode gzip
+
+	# Bei Staging sinnvoll, damit die Testinstanz nicht indexiert wird:
+	# header X-Robots-Tag "noindex, nofollow"
+
+	# API-, Upload- und WebSocket-Pfade ans Backend.
+	# Pfadliste an die eigene App anpassen!
+	@backend path /api/* /uploads/* /ws/*
+	handle @backend {
+		reverse_proxy <APP_NAME>-<ENV>-backend:3004 {
+			# Zwingend: sonst meldet Caddy "http" und das Backend hält die
+			# Verbindung für unsicher (Secure-Cookies, Redirect-Schleifen).
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	# Alles andere: statisches Frontend (SPA-Fallback macht der nginx im Container).
+	handle {
+		reverse_proxy <APP_NAME>-<ENV>-frontend:80 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+}

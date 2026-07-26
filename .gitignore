@@ -1,0 +1,13 @@
+# Routing-Snippets der Apps. Die liegen versioniert im jeweiligen App-Repo
+# (deployment/caddy/<app>.<env>.caddy) und werden auf argos hierher kopiert.
+# Sie gehören bewusst NICHT in dieses Repo – sonst müsste die Infrastruktur bei
+# jeder App-Änderung mitgepflegt werden.
+caddy/conf.d/*
+!caddy/conf.d/.gitkeep
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

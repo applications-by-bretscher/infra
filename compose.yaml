@@ -1,0 +1,46 @@
+# =============================================================================
+# Interner Edge-Router – EINMALIG pro Docker-Server (argos), app-unabhängig.
+#
+# Rolle in eurem Setup:
+#   Internet → hades (Apache, TLS/Let's Encrypt) → argos:8080 (dieser Caddy)
+#              → richtiger App-Container je nach Domain und Pfad
+#
+# Caddy macht hier bewusst KEIN TLS und KEIN Let's Encrypt – das erledigt schon
+# Apache auf hades. Caddy ist nur der Verteiler, damit hades pro App immer
+# denselben Port anspricht und keine Portbuchhaltung nötig ist.
+#
+# Dieses Verzeichnis gehört auf argos nach /srv/infra.
+#
+# Setup:
+#   docker network create edge
+#   docker compose -f /srv/infra/compose.yaml up -d
+#
+# Nach Änderung an einem Snippet neu laden (ohne Downtime für andere Apps):
+#   docker compose -f /srv/infra/compose.yaml exec caddy \
+#     caddy reload --config /etc/caddy/Caddyfile
+#
+# Langfristig gehört dieser Ordner in ein eigenes "infra"-Repo, nicht in eine App.
+# =============================================================================
+name: infra
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      # Nur HTTP und nur intern erreichbar. 127.0.0.1 weglassen, falls hades
+      # über das LAN zugreift – dann per Firewall auf hades einschränken.
+      - "${EDGE_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/conf.d:/etc/caddy/conf.d:ro
+      - caddy_config:/config
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  caddy_config:
