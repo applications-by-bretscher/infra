@@ -209,19 +209,38 @@ if [ "$DRY_RUN" = "1" ]; then
     echo "   [dry-run] mysqldump -> $BACKUP_DIR/${ENVIRONMENT}_<timestamp>.sql.gz"
 else
     mkdir -p "$BACKUP_DIR"
-    # Zugangsdaten aus DATABASE_URL lesen. Node statt Regex, weil Passwoerter
-    # URL-encodete Sonderzeichen enthalten koennen. Ausgabe zeilenweise statt als
-    # eval-barer Code - Sonderzeichen wie ' oder " brauchen so kein Escaping.
+
+    # DATABASE_URL direkt aus der Datei lesen - NICHT ueber `docker --env-file`.
+    # Dessen Parser nimmt jede Zeile woertlich: Anfuehrungszeichen wuerden Teil
+    # des Werts, und mehrzeilige Eintraege (z.B. FCM_SERVICE_ACCOUNT_JSON)
+    # bringen ihn durcheinander.
+    DB_URL="$(sed -n 's/^[[:space:]]*DATABASE_URL[[:space:]]*=[[:space:]]*//p' "$BACKEND_ENV" | tail -n 1)"
+    DB_URL="${DB_URL%"${DB_URL##*[![:space:]]}"}"        # Leerzeichen am Ende
+    case "$DB_URL" in                                     # umschliessende Quotes
+        \"*\") DB_URL="${DB_URL#\"}"; DB_URL="${DB_URL%\"}" ;;
+        \'*\') DB_URL="${DB_URL#\'}"; DB_URL="${DB_URL%\'}" ;;
+    esac
+
+    if [ -z "$DB_URL" ]; then
+        fail "In $BACKEND_ENV wurde keine Zeile DATABASE_URL=... gefunden."
+        fail "Ohne Backup wird nicht migriert."
+        exit 1
+    fi
+
+    # Zerlegen mit Node statt Regex: Passwoerter koennen URL-encodete
+    # Sonderzeichen enthalten. Ausgabe zeilenweise, damit nichts escaped werden muss.
     # (Das JS enthaelt bewusst KEINE einfachen Anfuehrungszeichen.)
     DB_INFO="$(
-        docker run --rm --env-file "$BACKEND_ENV" node:20-bookworm-slim \
+        docker run --rm -e DATABASE_URL="$DB_URL" node:20-bookworm-slim \
             node -e 'const u=new URL(process.env.DATABASE_URL);process.stdout.write([u.hostname,u.port||"3306",decodeURIComponent(u.username),decodeURIComponent(u.password),u.pathname.replace(/^\//,"")].join("\n"))' \
             2>/dev/null
     )" || DB_INFO=""
 
     if [ -z "$DB_INFO" ]; then
-        fail "DATABASE_URL konnte nicht gelesen werden - Deploy abgebrochen."
-        fail "Ohne Backup wird nicht migriert. Pruefe $BACKEND_ENV."
+        fail "DATABASE_URL konnte nicht geparst werden - Deploy abgebrochen."
+        # Passwort ausblenden, damit es nicht in Logs landet
+        fail "Gefunden: $(printf '%s' "$DB_URL" | sed -E 's#(//[^:]*:)[^@]*@#\1***@#')"
+        fail "Erwartet: mysql://benutzer:passwort@host:3306/datenbank"
         exit 1
     fi
 
