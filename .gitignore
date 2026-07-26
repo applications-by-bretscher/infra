@@ -11,3 +11,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Whisper-Modelldaten (mehrere GB, werden zur Laufzeit geladen)
+whisper/models/*
+!whisper/models/.gitkeep

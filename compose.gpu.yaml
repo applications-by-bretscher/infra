@@ -1,0 +1,22 @@
+# =============================================================================
+# Optionaler GPU-Override für Ollama.
+#
+# Nur einbinden, wenn eine echte NVIDIA-GPU inkl. funktionierendem Container-
+# Toolkit verfügbar ist. Achtung: Docker kann eine "nvidia"-Runtime auflisten,
+# obwohl kein Adapter durchgereicht ist – dann scheitert der Container-Start mit
+# "nvidia-container-cli: initialization error". Deshalb ist GPU nicht Standard.
+#
+#   docker compose -f /srv/infra/compose.yaml -f /srv/infra/compose.gpu.yaml up -d
+#
+# Prüfen, ob GPU wirklich nutzbar ist:
+#   docker run --rm --gpus all ubuntu nvidia-smi
+# =============================================================================
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

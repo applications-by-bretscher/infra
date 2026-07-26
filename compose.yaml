@@ -1,40 +1,73 @@
 # =============================================================================
-# Interner Edge-Router – EINMALIG pro Docker-Server (argos), app-unabhängig.
+# Geteilte Infrastruktur – EINMALIG pro Docker-Server (argos), app-unabhängig.
 #
-# Rolle in eurem Setup:
-#   Internet → hades (Apache, TLS/Let's Encrypt) → argos:8080 (dieser Caddy)
+#   Internet → hades (Apache, TLS/Let's Encrypt) → argos:8080 (Caddy)
 #              → richtiger App-Container je nach Domain und Pfad
 #
-# Caddy macht hier bewusst KEIN TLS und KEIN Let's Encrypt – das erledigt schon
-# Apache auf hades. Caddy ist nur der Verteiler, damit hades pro App immer
-# denselben Port anspricht und keine Portbuchhaltung nötig ist.
+# Enthält alles, was mehrere Apps und Umgebungen gemeinsam nutzen:
+#   caddy    Edge-Router – verteilt nach Domain und Pfad
+#   ollama   LLM-Inferenz
+#   whisper  Transkription
 #
-# Dieses Verzeichnis gehört auf argos nach /srv/infra.
+# Caddy macht bewusst KEIN TLS und KEIN Let's Encrypt – das erledigt Apache auf
+# hades. Caddy ist nur der Verteiler, damit hades pro App immer denselben Port
+# anspricht und keine Portbuchhaltung nötig ist.
+#
+# ollama und whisper stehen hier statt in den App-Stacks, weil sie zustandslos
+# sind, keine App-Daten halten und ihre Modelle gross sind (~3 GB bei Whisper).
+# Eine eigene Instanz je Umgebung würde Speicher und RAM vervielfachen, ohne
+# etwas zu gewinnen. Die Apps erreichen sie über das edge-Netz unter:
+#   http://ollama:11434   ·   http://whisper:8000
 #
 # Setup:
 #   docker network create edge
 #   docker compose -f /srv/infra/compose.yaml up -d
 #
-# Nach Änderung an einem Snippet neu laden (ohne Downtime für andere Apps):
+# Caddy nach Snippet-Änderung neu laden (ohne Downtime für andere Apps):
 #   docker compose -f /srv/infra/compose.yaml exec caddy \
 #     caddy reload --config /etc/caddy/Caddyfile
-#
-# Langfristig gehört dieser Ordner in ein eigenes "infra"-Repo, nicht in eine App.
 # =============================================================================
 name: infra
 
 services:
+  # ── Edge-Router ─────────────────────────────────────────────────────────────
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      # Nur HTTP und nur intern erreichbar. 127.0.0.1 weglassen, falls hades
-      # über das LAN zugreift – dann per Firewall auf hades einschränken.
+      # Nur HTTP und nur intern erreichbar. TLS terminiert Apache auf hades.
       - "${EDGE_HTTP_PORT:-8080}:80"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy/conf.d:/etc/caddy/conf.d:ro
       - caddy_config:/config
+    networks:
+      - edge
+
+  # ── Ollama (LLM) ────────────────────────────────────────────────────────────
+  # Läuft standardmässig auf CPU. Mit echter NVIDIA-GPU zusätzlich
+  # compose.gpu.yaml einbinden.
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - edge
+
+  # ── Whisper (Transkription, CPU) ────────────────────────────────────────────
+  whisper:
+    build:
+      context: ./whisper
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+    volumes:
+      # Modell-Cache bleibt über Neustarts erhalten – sonst würden bei jedem
+      # Start mehrere GB neu geladen.
+      - ./whisper/models:/app/models
     networks:
       - edge
 
@@ -44,3 +77,4 @@ networks:
 
 volumes:
   caddy_config:
+  ollama_data:
