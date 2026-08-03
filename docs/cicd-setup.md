@@ -60,8 +60,9 @@ registrieren. Mit einer (kostenlosen) Organisation bedient **ein** Runner alle A
    git switch -c development && git push -u origin development
    ```
 
-> Enthält `infra` Secrets? Nein — der Workflow referenziert sie nur über
-> `${{ secrets.* }}`. Die Werte liegen in den Org-Secrets und sind nie sichtbar.
+> Enthält `infra` Secrets? Nein — überhaupt keine. Der Deploy nutzt den SSH-Key,
+> der auf dem Runner (hades) liegt; siehe Schritt 7. Deshalb ist es unbedenklich,
+> dieses Repo öffentlich zu machen.
 
 Lokale Clones danach einmalig umbiegen:
 ```bash
@@ -289,19 +290,49 @@ echo "<PUBLIC-KEY>" >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ```
 
-Verbindung testen (bestätigt gleichzeitig den Hostkey):
+Damit der Workflow den Schlüssel ohne weitere Angaben findet, auf **hades** als
+`gh-runner` eine SSH-Konfiguration anlegen:
+
 ```bash
 # auf hades, als gh-runner:
-ssh -i ~/.ssh/id_deploy jan@argos.net.letsbuild.ch 'docker ps'
+cat >> ~/.ssh/config <<'EOF'
+
+Host argos.net.letsbuild.ch
+  User jan
+  IdentityFile ~/.ssh/id_deploy
+  IdentitiesOnly yes
+EOF
+chmod 600 ~/.ssh/config
 ```
 
-Dann in der Organisation unter Settings → Secrets and variables → Actions anlegen:
+Verbindung testen — bestätigt gleichzeitig den Hostkey:
+```bash
+# auf hades, als gh-runner:
+ssh -o StrictHostKeyChecking=accept-new argos.net.letsbuild.ch 'docker ps'
+```
 
-| Secret | Inhalt |
-|---|---|
-| `DOCKER_HOST_SSH_KEY` | kompletter Inhalt von `~/.ssh/id_deploy` (privater Key) |
-| `DOCKER_HOST` | `argos.net.letsbuild.ch` |
-| `DOCKER_HOST_USER` | Deploy-Benutzer auf argos |
+Muss **ohne Passwortabfrage** durchlaufen. Danach nochmal mit `BatchMode`, weil
+der Workflow genau so verbindet:
+
+```bash
+ssh -o BatchMode=yes argos.net.letsbuild.ch 'echo ok'
+```
+
+### Keine Secrets nötig
+
+Der Runner läuft auf hades, wo der Schlüssel ohnehin liegt. Ihn erst zu GitHub
+hochzuladen, damit GitHub ihn auf dieselbe Maschine zurückschickt, wäre ein
+Umweg — nötig nur bei Cloud-Runnern.
+
+Zwei Vorteile:
+
+- Der private Schlüssel verlässt hades nie.
+- Es funktioniert mit **privaten** Repos auf dem GitHub-Free-Plan. Dort greifen
+  Organisations-Secrets nämlich nur bei öffentlichen Repos — ein Stolperstein,
+  der sonst jede neue private App betrifft.
+
+Hostname und Benutzer stehen als normale Parameter im zentralen Workflow
+(`docker_host`, Standard `argos.net.letsbuild.ch`) und sind keine Geheimnisse.
 
 ---
 

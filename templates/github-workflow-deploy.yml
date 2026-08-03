@@ -41,4 +41,3 @@ jobs:
       app: <APP_NAME>
       environment: ${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
       ref: ${{ inputs.ref || github.ref_name }}
-    secrets: inherit

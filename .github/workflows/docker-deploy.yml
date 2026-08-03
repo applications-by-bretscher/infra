@@ -9,10 +9,19 @@
 # Migration, Health-Check, Rollback) steckt in bin/deploy.sh – der Workflow
 # bleibt dumm und damit wartungsarm.
 #
-# Benötigte Org-Secrets:
-#   DOCKER_HOST_SSH_KEY   privater SSH-Key hades → argos
-#   DOCKER_HOST           Hostname des Docker-Servers (intern)
-#   DOCKER_HOST_USER      SSH-Benutzer auf dem Docker-Server
+# ── KEINE SECRETS NÖTIG ──────────────────────────────────────────────────────
+# Der Runner läuft auf hades, und der SSH-Key liegt dort bereits unter
+# ~gh-runner/.ssh/. Ihn erst zu GitHub hochzuladen, damit GitHub ihn auf
+# dieselbe Maschine zurückschickt, wäre ein Umweg – nötig nur bei Cloud-Runnern.
+#
+# Nebeneffekt: Der private Schlüssel verlässt hades nie, und private Repos
+# funktionieren auch auf dem GitHub-Free-Plan (dort greifen Organisations-
+# Secrets nur bei öffentlichen Repos).
+#
+# Voraussetzung auf hades, einmalig als Benutzer gh-runner:
+#   ~/.ssh/id_deploy            der private Schlüssel
+#   ~/.ssh/config               Host-Eintrag mit User und IdentityFile
+#   ~/.ssh/known_hosts          Hostkey von argos bereits akzeptiert
 # =============================================================================
 name: Docker Deploy (reusable)
 
@@ -31,6 +40,11 @@ on:
         description: 'Branch/Tag/SHA, der deployt wird'
         required: true
         type: string
+      docker_host:
+        description: 'Docker-Server, auf dem deployt wird (kein Geheimnis – interner Hostname)'
+        required: false
+        default: 'argos.net.letsbuild.ch'
+        type: string
       app_root:
         description: 'Basisverzeichnis der Apps auf dem Docker-Server'
         required: false
@@ -45,13 +59,6 @@ on:
         required: false
         default: 30
         type: number
-    secrets:
-      DOCKER_HOST_SSH_KEY:
-        required: true
-      DOCKER_HOST:
-        required: true
-      DOCKER_HOST_USER:
-        required: true
 
 jobs:
   deploy:
@@ -59,26 +66,24 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: ${{ inputs.timeout_minutes }}
     steps:
-      - name: SSH-Key bereitstellen
+      - name: SSH-Verbindung pruefen
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          # Eigener Key-Name pro Run – parallele Jobs stören sich nicht gegenseitig
-          KEY=~/.ssh/deploy_${{ github.run_id }}
-          printf '%s\n' "${{ secrets.DOCKER_HOST_SSH_KEY }}" > "$KEY"
-          chmod 600 "$KEY"
-          echo "SSH_KEY=$KEY" >> "$GITHUB_ENV"
-          # Hostkey vertrauensvoll einmalig lernen (interner Server)
-          ssh-keyscan -H "${{ secrets.DOCKER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          # BatchMode: niemals interaktiv nachfragen. Fehlt der Schluessel oder
+          # ist der Hostkey unbekannt, soll der Job sofort scheitern statt zu haengen.
+          if ! ssh -o BatchMode=yes -o ConnectTimeout=10 \
+                 "${{ inputs.docker_host }}" 'echo ok' >/dev/null; then
+            echo "::error::SSH zu ${{ inputs.docker_host }} nicht moeglich."
+            echo "Auf hades als gh-runner pruefen:"
+            echo "  sudo -u gh-runner ssh -o BatchMode=yes ${{ inputs.docker_host }} 'echo ok'"
+            echo "Noetig sind ~gh-runner/.ssh/id_deploy, ein passender Eintrag in"
+            echo "~gh-runner/.ssh/config und der Hostkey in ~gh-runner/.ssh/known_hosts."
+            exit 1
+          fi
 
-      - name: Deploy auslösen
+      - name: Deploy ausloesen
         run: |
           set -euo pipefail
-          ssh -i "$SSH_KEY" -o BatchMode=yes \
-            "${{ secrets.DOCKER_HOST_USER }}@${{ secrets.DOCKER_HOST }}" \
+          ssh -o BatchMode=yes "${{ inputs.docker_host }}" \
             "cd '${{ inputs.app_root }}/${{ inputs.app }}/${{ inputs.environment }}' \
              && '${{ inputs.deploy_script }}' '${{ inputs.environment }}' '${{ inputs.ref }}'"
-
-      - name: SSH-Key aufräumen
-        if: always()
-        run: rm -f "${SSH_KEY:-}"
