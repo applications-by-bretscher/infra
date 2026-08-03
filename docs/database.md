@@ -71,13 +71,31 @@ docker compose -f /srv/infra/compose.yaml exec mysql \
 
 ## Bestehende Datenbank übernehmen
 
-Dump einspielen (funktioniert auch für grosse Dateien, anders als über die
-Weboberfläche):
+> ### Beim Import niemals `-p` verwenden
+>
+> `mysql -uroot -p < dump.sql` schlägt fehl mit `Access denied`. Grund: Ohne
+> Terminal liest der Passwort-Prompt aus **stdin** — und dort steht der Dump.
+> MySQL nimmt also die erste Zeile der SQL-Datei als Passwort.
+>
+> Stattdessen das Passwort per `MYSQL_PWD` übergeben, dann bleibt stdin frei:
 
 ```bash
-gunzip -c dump.sql.gz | docker compose -f /srv/infra/compose.yaml exec -T mysql \
-  mysql -uroot -p meine_app_staging
+ROOT_PW=$(grep -m1 '^MYSQL_ROOT_PASSWORD=' /srv/infra/.env | cut -d= -f2- | tr -d '"')
+
+docker compose -f /srv/infra/compose.yaml exec -T -e MYSQL_PWD="$ROOT_PW" mysql \
+  mysql -uroot < dump.sql
 ```
+
+Für gepackte Dumps:
+
+```bash
+gunzip -c dump.sql.gz | docker compose -f /srv/infra/compose.yaml exec -T \
+  -e MYSQL_PWD="$ROOT_PW" mysql mysql -uroot meine_app_staging
+```
+
+> Enthält der Dump kein `DROP TABLE IF EXISTS` (z.B. Exporte aus HeidiSQL), muss
+> die Zieldatenbank **leer** sein — sonst brechen die `CREATE TABLE`-Anweisungen
+> ab. Dann vorher `DROP DATABASE` + `CREATE DATABASE`.
 
 Umgekehrt exportieren:
 
