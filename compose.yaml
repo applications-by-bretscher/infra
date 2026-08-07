@@ -127,5 +127,5 @@ volumes:
   caddy_config:
   ollama_data:
   # Die Nutzdaten aller App-Datenbanken. Dieses Volume ist der wertvollste Teil
-  # des Servers – regelmässige Sicherung einrichten (siehe docs/database.md).
+  # des Servers – regelmässige Sicherung einrichten (siehe docs-Repo: 04-datenbank.md).
   mysql_data:

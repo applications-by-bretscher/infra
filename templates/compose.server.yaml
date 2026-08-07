@@ -35,8 +35,9 @@ services:
       - uploads_data:/app/uploads
       - logs_data:/app/logs
       - chat_data:/app/chat-data
-      - ./deployment/certs:/app/certs:ro     # DB-CA (DATABASE_URL: ...?sslca=/app/certs/isrgrootx1.pem)
     networks:
+      # Internes Netz der App – derselbe Name wie in compose.yaml.
+      # Konvention: heisst wie APP_NAME. Hier gehoert KEIN "ports:" hin.
       <APP_NAME>:
       edge:
         # Eindeutiger Name auf dem geteilten Netz – sonst kollidiert "backend"

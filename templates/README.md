@@ -1,7 +1,9 @@
 # Vorlagen für neue Apps
 
 Kopiervorlagen, damit eine neue App in wenigen Minuten am gemeinsamen CI/CD hängt.
-Schritt-für-Schritt-Anleitung: [`docs/new-app-guide.md`](../docs/new-app-guide.md).
+
+**Schritt-für-Schritt-Anleitung:**
+[`docs/02-neue-app-deployen.md`](https://github.com/applications-by-bretscher/docs/blob/main/02-neue-app-deployen.md)
 
 ## Was kopiert wird — und was angepasst werden muss
 
