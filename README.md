@@ -41,7 +41,19 @@ Ausführlich: [`docs/deployment-architecture.md`](docs/deployment-architecture.m
 | `bin/deploy.sh` | **zentrales Deploy-Skript für alle Apps** — Backup, Migration, Health-Check, Rollback |
 | `.github/workflows/docker-deploy.yml` | wiederverwendbarer Workflow, den die App-Repos aufrufen |
 | `templates/` | Kopiervorlagen für neue Apps |
-| `docs/` | Setup, Architektur, Anleitung für neue Apps |
+| `docs/` | Setup, Architektur, Anleitungen |
+
+---
+
+## Dokumentation
+
+| Doku | Wofür |
+|---|---|
+| [`docs/deployment-architecture.md`](docs/deployment-architecture.md) | **Wie das Ganze funktioniert** — Aufbau, Entscheide, Deploy-Ablauf, Grenzen |
+| [`docs/cicd-setup.md`](docs/cicd-setup.md) | Plattform von Grund auf aufsetzen (einmalig) |
+| [`docs/new-app-guide.md`](docs/new-app-guide.md) | **Neue** App anschliessen |
+| [`docs/migrate-existing-app.md`](docs/migrate-existing-app.md) | **Bestehende** App vom Blech in die Container umziehen |
+| [`docs/database.md`](docs/database.md) | Zentrale MySQL, Adminer, Backups |
 
 ---
 
@@ -73,7 +85,7 @@ docker compose -f /srv/infra/compose.yaml exec caddy caddy reload --config /etc/
 
 ## Neue App anschliessen
 
-Runner, Edge-Router und Secrets bleiben unverändert. Schritt für Schritt:
+Runner und Edge-Router bleiben unverändert. Schritt für Schritt:
 [`docs/new-app-guide.md`](docs/new-app-guide.md)
 
 Kurz:
@@ -82,6 +94,18 @@ Kurz:
 3. Apache-VirtualHost auf hades (identisch bis auf `ServerName` + Zertifikat)
 4. `/srv/apps/<app>/{production,staging}` anlegen, `.env`-Dateien befüllen
 5. Aufrufer-Workflow ins App-Repo
+
+Läuft die App heute schon roh auf dem Server (systemd, eigener Port), kommt der
+Umzug der Daten dazu — inklusive Wartungsfenster und Rückweg:
+[`docs/migrate-existing-app.md`](docs/migrate-existing-app.md)
+
+### Stand der Migration
+
+| App | Staging | Produktion |
+|---|---|---|
+| musig-elgg | ✅ | ✅ umgestellt 08/2026 — alte Dienste gestoppt, noch nicht entfernt |
+| rotary | – | – |
+| jan-portfolio | – | – |
 
 ---
 
