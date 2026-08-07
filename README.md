@@ -8,12 +8,14 @@ gehört.
 >
 > | Ich will … | Dort |
 > |---|---|
-> | **eine neue App deployen** | [`02-neue-app-deployen.md`](https://github.com/applications-by-bretscher/docs/blob/main/02-neue-app-deployen.md) |
+> | **eine neue App deployen** | [`04-neue-app-deployen.md`](https://github.com/applications-by-bretscher/docs/blob/main/04-neue-app-deployen.md) |
 > | verstehen, wie das funktioniert | [`01-architektur.md`](https://github.com/applications-by-bretscher/docs/blob/main/01-architektur.md) |
-> | deployen, Logs, Rollback | [`03-betrieb.md`](https://github.com/applications-by-bretscher/docs/blob/main/03-betrieb.md) |
-> | Datenbank anlegen oder sichern | [`04-datenbank.md`](https://github.com/applications-by-bretscher/docs/blob/main/04-datenbank.md) |
-> | eine App vom Blech umziehen | [`05-app-umziehen.md`](https://github.com/applications-by-bretscher/docs/blob/main/05-app-umziehen.md) |
-> | die Plattform aufsetzen | [`06-plattform-aufsetzen.md`](https://github.com/applications-by-bretscher/docs/blob/main/06-plattform-aufsetzen.md) |
+> | wissen, welcher Branch wohin deployt | [`02-branches-und-umgebungen.md`](https://github.com/applications-by-bretscher/docs/blob/main/02-branches-und-umgebungen.md) |
+> | Docker verstehen und bedienen | [`03-docker.md`](https://github.com/applications-by-bretscher/docs/blob/main/03-docker.md) |
+> | deployen, Logs, Rollback | [`05-betrieb.md`](https://github.com/applications-by-bretscher/docs/blob/main/05-betrieb.md) |
+> | Datenbank anlegen oder sichern | [`06-datenbank.md`](https://github.com/applications-by-bretscher/docs/blob/main/06-datenbank.md) |
+> | eine App vom Blech umziehen | [`07-app-umziehen.md`](https://github.com/applications-by-bretscher/docs/blob/main/07-app-umziehen.md) |
+> | die Plattform aufsetzen | [`08-plattform-aufsetzen.md`](https://github.com/applications-by-bretscher/docs/blob/main/08-plattform-aufsetzen.md) |
 > | wissen, warum etwas nicht geht | [`referenz/fehlersuche.md`](https://github.com/applications-by-bretscher/docs/blob/main/referenz/fehlersuche.md) |
 >
 > Dieses Repo führt bewusst **keine** eigenen Erklärungen — zwei Quellen driften
