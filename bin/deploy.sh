@@ -9,6 +9,15 @@
 # Alles Projektabhängige steht in der .env der jeweiligen Umgebung:
 #   APP_NAME, DOMAIN, PUBLIC_API_URL   (Pflicht)
 #   BACKEND_DIR                        (optional, Default "backend")
+#   MIGRATE_CMD                        (optional, Default "npx prisma migrate deploy";
+#                                       leer = Migrationsschritt entfällt)
+#
+# Plattform-Werte kommen dagegen aus /srv/infra/.env, NICHT aus der App:
+#   EDGE_HTTP_PORT                     (optional, Default 8080)
+#
+# Fest verdrahtet und damit Voraussetzung an die App (siehe docs/referenz/
+# konventionen.md): die Compose-Services heissen "backend" und "frontend",
+# das Build-Target des Backends heisst "runtime".
 #
 # Erwartete Konvention im App-Repo:
 #   compose.yaml          gemeinsame Service-Definitionen
@@ -103,6 +112,27 @@ export ENVIRONMENT
 
 : "${APP_NAME:?APP_NAME fehlt in .env}"
 : "${DOMAIN:?DOMAIN fehlt in .env}"
+
+# Der Port des Edge-Routers gehoert zur PLATTFORM, nicht zur App - er steht in
+# /srv/infra/.env. Ihn aus der App-.env zu lesen waere falsch: dort steht er
+# laut Konvention nie. Bei abweichendem Edge-Port schluege sonst der Smoke-Test
+# fehl, obwohl die App laeuft - und loeste einen unnoetigen Rollback aus.
+INFRA_DIR="${INFRA_DIR:-/srv/infra}"
+if [ -z "${EDGE_HTTP_PORT:-}" ] && [ -f "$INFRA_DIR/.env" ]; then
+    EDGE_HTTP_PORT="$(sed -n 's/^[[:space:]]*EDGE_HTTP_PORT[[:space:]]*=[[:space:]]*//p' \
+        "$INFRA_DIR/.env" | tail -n 1 | tr -d '\042\047')"
+fi
+EDGE_HTTP_PORT="${EDGE_HTTP_PORT:-8080}"
+
+# Migrationsbefehl. Der Default passt fuer Node/Prisma; Apps mit anderem
+# Werkzeug setzen ihn in der .env der Umgebung:
+#   MIGRATE_CMD="npm run migrate"           Knex, Sequelize, TypeORM
+#   MIGRATE_CMD="python manage.py migrate"  Django
+#   MIGRATE_CMD=""                          App ohne Migrationen -> Schritt entfaellt
+# Der Befehl muss IDEMPOTENT sein, er laeuft bei jedem Deploy.
+# Bewusst ${VAR-default} statt ${VAR:-default}: nur so laesst sich der Schritt
+# mit MIGRATE_CMD="" abschalten.
+MIGRATE_CMD="${MIGRATE_CMD-npx prisma migrate deploy}"
 
 BACKEND_ENV="$APP_DIR/$BACKEND_DIR/.env"
 [ -f "$BACKEND_ENV" ] || {
@@ -299,12 +329,16 @@ elif ! "${COMPOSE[@]}" build; then
 fi
 
 # ── 4. Migrationen ───────────────────────────────────────────────────────────
-log "Prisma-Migrationen anwenden"
-if [ "$DRY_RUN" = "1" ]; then
-    echo "   [dry-run] ${COMPOSE[*]} run --rm --no-deps -T backend npx prisma migrate deploy"
-elif ! "${COMPOSE[@]}" run --rm --no-deps -T backend npx prisma migrate deploy; then
-    rollback "Migration fehlgeschlagen."
-    exit 1
+if [ -z "$MIGRATE_CMD" ]; then
+    log "Migrationen übersprungen (MIGRATE_CMD ist leer)"
+else
+    log "Migrationen anwenden: $MIGRATE_CMD"
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "   [dry-run] ${COMPOSE[*]} run --rm --no-deps -T backend sh -c '$MIGRATE_CMD'"
+    elif ! "${COMPOSE[@]}" run --rm --no-deps -T backend sh -c "$MIGRATE_CMD"; then
+        rollback "Migration fehlgeschlagen."
+        exit 1
+    fi
 fi
 
 # ── 5. Container starten ─────────────────────────────────────────────────────

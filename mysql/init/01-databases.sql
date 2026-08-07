@@ -1,24 +1,33 @@
 -- =============================================================================
--- Legt Datenbanken und Benutzer für die Apps an.
+-- Legt Datenbanken für die Apps an.
 --
--- WICHTIG: Diese Datei wird NUR beim allerersten Start ausgeführt, solange das
--- Volume mysql_data noch leer ist. Spätere Änderungen hier haben keine Wirkung –
--- dann die Statements von Hand ausführen (Adminer oder docker exec).
+-- WICHTIG: Diese Datei läuft NUR beim allerersten Start, solange das Volume
+-- mysql_data noch leer ist. Spätere Änderungen hier haben KEINE Wirkung – dann
+-- die Statements von Hand ausführen (Adminer oder docker compose exec).
 --
--- Passwörter: Diese Datei liegt im Repo. Trage hier KEINE echten Passwörter ein.
--- Die Platzhalter unten werden beim ersten Start gesetzt und danach über
--- Adminer geändert – oder besser: lege die Benutzer nach dem ersten Start
--- manuell an. Siehe docs/database.md.
+-- Auf einem laufenden Server ist sie damit reine Dokumentation. Der gültige Weg,
+-- eine Datenbank samt Benutzer anzulegen, steht im docs-Repo:
+--   docs/06-datenbank.md  →  "Datenbank und Benutzer anlegen"
+--
+-- Passwörter: Diese Datei liegt im Repo. Hier stehen deshalb KEINE Benutzer und
+-- keine Passwörter – die werden nach dem ersten Start von Hand angelegt.
+--
+-- Kollation: utf8mb4_unicode_ci, passend zu --collation-server in compose.yaml.
+-- Bewusst NICHT die MySQL-8-Vorgabe utf8mb4_0900_ai_ci – die bestehenden
+-- Datenbestände tragen durchgehend utf8mb4_unicode_ci, und gemischte
+-- Kollationen brechen später bei JOINs mit "Illegal mix of collations".
+-- Begründung und Prüfbefehle: docs/06-datenbank.md → "Kollation"
 -- =============================================================================
 
 -- ── musig-elgg ───────────────────────────────────────────────────────────────
+-- Beide Umgebungen laufen seit 08/2026 auf diesem Server.
+CREATE DATABASE IF NOT EXISTS musig_elgg
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS musig_elgg_staging
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- Produktion folgt später als eigener, geplanter Umzug von herkules.
--- CREATE DATABASE IF NOT EXISTS musig_elgg
---   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
 -- ── Weitere Apps hier ergänzen ───────────────────────────────────────────────
+-- CREATE DATABASE IF NOT EXISTS rotary
+--   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- CREATE DATABASE IF NOT EXISTS rotary_staging
 --   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

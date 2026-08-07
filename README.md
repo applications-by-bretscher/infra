@@ -16,6 +16,7 @@ gehört.
 > | Datenbank anlegen oder sichern | [`06-datenbank.md`](https://github.com/applications-by-bretscher/docs/blob/main/06-datenbank.md) |
 > | eine App vom Blech umziehen | [`07-app-umziehen.md`](https://github.com/applications-by-bretscher/docs/blob/main/07-app-umziehen.md) |
 > | die Plattform aufsetzen | [`08-plattform-aufsetzen.md`](https://github.com/applications-by-bretscher/docs/blob/main/08-plattform-aufsetzen.md) |
+> | einen echten Wert nachschlagen | [`09-inventar.md`](https://github.com/applications-by-bretscher/docs/blob/main/09-inventar.md) |
 > | wissen, warum etwas nicht geht | [`referenz/fehlersuche.md`](https://github.com/applications-by-bretscher/docs/blob/main/referenz/fehlersuche.md) |
 >
 > Dieses Repo führt bewusst **keine** eigenen Erklärungen — zwei Quellen driften

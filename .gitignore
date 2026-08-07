@@ -22,3 +22,7 @@ Thumbs.db
 # Whisper-Modelldaten (mehrere GB, werden zur Laufzeit geladen)
 whisper/models/*
 !whisper/models/.gitkeep
+
+# Echte Werte – gehoeren nie ins Git (siehe docs/09-inventar.md)
+WERTE.local.md
+*.local.md
