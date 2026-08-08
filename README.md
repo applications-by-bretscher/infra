@@ -9,6 +9,7 @@ gehört.
 > | Ich will … | Dort |
 > |---|---|
 > | **eine neue App deployen** | [`04-neue-app-deployen.md`](https://github.com/applications-by-bretscher/docs/blob/main/04-neue-app-deployen.md) |
+> | **eine bestehende App hierher holen** | [`10-app-portieren.md`](https://github.com/applications-by-bretscher/docs/blob/main/10-app-portieren.md) |
 > | verstehen, wie das funktioniert | [`01-architektur.md`](https://github.com/applications-by-bretscher/docs/blob/main/01-architektur.md) |
 > | wissen, welcher Branch wohin deployt | [`02-branches-und-umgebungen.md`](https://github.com/applications-by-bretscher/docs/blob/main/02-branches-und-umgebungen.md) |
 > | Docker verstehen und bedienen | [`03-docker.md`](https://github.com/applications-by-bretscher/docs/blob/main/03-docker.md) |

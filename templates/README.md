@@ -2,8 +2,13 @@
 
 Kopiervorlagen, damit eine neue App in wenigen Minuten am gemeinsamen CI/CD hängt.
 
-**Schritt-für-Schritt-Anleitung:**
-[`docs/04-neue-app-deployen.md`](https://github.com/applications-by-bretscher/docs/blob/main/04-neue-app-deployen.md)
+**Schritt-für-Schritt-Anleitungen im `docs`-Repo:**
+
+| Ausgangslage | Anleitung |
+|---|---|
+| neue App, von Grund auf | [`04-neue-app-deployen.md`](https://github.com/applications-by-bretscher/docs/blob/main/04-neue-app-deployen.md) |
+| bestehendes Repo, schon containerisiert | [`10-app-portieren.md`](https://github.com/applications-by-bretscher/docs/blob/main/10-app-portieren.md) |
+| App läuft roh auf einem Server | [`07-app-umziehen.md`](https://github.com/applications-by-bretscher/docs/blob/main/07-app-umziehen.md) |
 
 ## Was kopiert wird — und was angepasst werden muss
 
