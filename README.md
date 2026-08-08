@@ -94,5 +94,13 @@ docker compose -f /srv/infra/compose.yaml exec caddy caddy reload --config /etc/
 | App | Staging | Produktion |
 |---|---|---|
 | musig-elgg | ✅ | ✅ umgestellt 08/2026 — alte Dienste gestoppt, noch nicht entfernt |
+| office-templating | ⏳ vorbereitet, Server-Einrichtung offen | ⏳ |
 | rotary | – | – |
 | jan-portfolio | – | – |
+
+`office-templating` ist die erste App mit **eigenem Objektspeicher**: MinIO läuft im
+App-Stack (eigene Instanz und eigenes Volume je Umgebung), und die presignten
+Download-URLs laufen über die App-Domain — Caddy routet dafür das Bucket-Präfix an MinIO.
+Kein zusätzliches Zertifikat, keine zusätzliche Subdomain. Einrichtung:
+[`deployment/README.md`](https://github.com/applications-by-bretscher/office-templating/blob/main/deployment/README.md)
+im App-Repo.

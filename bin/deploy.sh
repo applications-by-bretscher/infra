@@ -368,7 +368,7 @@ else
         warn "Haeufigste Ursachen:"
         warn "  - Caddy-Snippet fehlt in /srv/infra/caddy/conf.d/ oder wurde nicht neu geladen"
         warn "  - Domain im Snippet passt nicht zu DOMAIN aus der .env ($DOMAIN)"
-        warn "  - Netzwerk-Alias im Snippet passt nicht zu compose.<env>.yaml"
+        warn "  - Netzwerk-Alias im Snippet passt nicht zu compose.server.yaml"
         warn "Pruefen: docker compose -f /srv/infra/compose.yaml logs --tail 50 caddy"
         rollback "App ueber den internen Edge-Router nicht erreichbar."
         exit 1
