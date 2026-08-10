@@ -97,6 +97,32 @@ fail() { echo -e "\033[1;31m[x]\033[0m $*" >&2; }
 ok()   { echo -e "\033[1;32m[ok]\033[0m $*"; }
 
 # ── Vorbedingungen ───────────────────────────────────────────────────────────
+# Umgebung und Verzeichnis muessen zusammenpassen. ENVIRONMENT kommt aus dem
+# Argument, APP_DIR aus $PWD - wer die beiden mischt, trifft eine andere
+# Umgebung als gemeint:
+#
+#   cd /srv/apps/<app>/staging && deploy.sh production
+#     -> stellt den STAGING-Checkout auf main um (Code weg)
+#     -> sichert die STAGING-Datenbank unter einem production_-Namen
+#     -> baut im PRODUCTION-Compose-Projekt
+#
+# Jeder Teil sieht fuer sich korrekt aus, deshalb faellt es erst am Schaden auf.
+# Diese Pruefung steht bewusst VOR dem Einlesen der .env und vor jedem
+# git-Kommando - bis hierher wurde noch nichts angefasst.
+APP_DIR_NAME="$(basename "$APP_DIR")"
+if [ "$APP_DIR_NAME" != "$ENVIRONMENT_ARG" ] && [ "${ALLOW_ENV_DIR_MISMATCH:-0}" != "1" ]; then
+    fail "Umgebung und Verzeichnis passen nicht zusammen - abgebrochen."
+    fail "  Argument:    $ENVIRONMENT_ARG"
+    fail "  Verzeichnis: $APP_DIR"
+    fail ""
+    fail "Gemeint war vermutlich:"
+    fail "  cd $(dirname "$APP_DIR")/$ENVIRONMENT_ARG && $0 $ENVIRONMENT_ARG"
+    fail ""
+    fail "Heisst das Verzeichnis absichtlich anders:"
+    fail "  ALLOW_ENV_DIR_MISMATCH=1 $0 $ENVIRONMENT_ARG"
+    exit 2
+fi
+
 [ -f "$APP_DIR/.env" ] || { fail "Es fehlt $APP_DIR/.env (APP_NAME, DOMAIN, PUBLIC_API_URL)."; exit 1; }
 
 # .env ZUERST einlesen – sie darf BACKEND_DIR überschreiben, das direkt danach
