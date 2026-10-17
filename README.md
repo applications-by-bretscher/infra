@@ -96,6 +96,7 @@ docker compose -f /srv/infra/compose.yaml exec caddy caddy reload --config /etc/
 |---|---|---|
 | musig-elgg | ✅ | ✅ umgestellt 08/2026 — alte Dienste gestoppt, noch nicht entfernt |
 | office-templating | ⏳ vorbereitet, Server-Einrichtung offen | ⏳ |
+| dicegames | ⏳ vorbereitet, Server-Einrichtung offen | ⏳ |
 | rotary | – | – |
 | jan-portfolio | – | – |
 

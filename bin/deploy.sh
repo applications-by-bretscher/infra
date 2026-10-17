@@ -12,6 +12,10 @@
 #   MIGRATE_CMD                        (optional, Default "npx prisma migrate deploy";
 #                                       leer = Migrationsschritt entfällt)
 #
+# Apps ohne Datenbank lassen DATABASE_URL in <BACKEND_DIR>/.env weg und setzen
+# MIGRATE_CMD= (leer) - dann entfaellt auch das Backup. Sobald ein MIGRATE_CMD
+# gesetzt ist, bleibt das Backup Pflicht.
+#
 # Plattform-Werte kommen dagegen aus /srv/infra/.env, NICHT aus der App:
 #   EDGE_HTTP_PORT                     (optional, Default 8080)
 #
@@ -34,7 +38,8 @@
 #
 # Ablauf (die Reihenfolge ist Absicht):
 #   1. Code holen          – nur auschecken, noch nichts anfassen
-#   2. DB-Backup           – bevor irgendeine Migration läuft
+#   2. DB-Backup           – bevor irgendeine Migration läuft (entfällt nur bei
+#                            Apps ohne DATABASE_URL UND ohne MIGRATE_CMD)
 #   3. Images bauen        – die laufende App bleibt dabei unberührt
 #   4. Migrationen         – explizit, damit Fehler VOR dem Umschalten auffallen
 #   5. Container starten
@@ -270,23 +275,29 @@ echo "    Neuer Image-Tag:  $NEW_TAG"
 echo "    Bisheriger Tag:   ${PREVIOUS_TAG:-<keiner>}"
 
 # ── 2. DB-Backup ─────────────────────────────────────────────────────────────
-log "Datenbank sichern (vor allen Migrationen)"
+# DATABASE_URL direkt aus der Datei lesen - NICHT ueber `docker --env-file`.
+# Dessen Parser nimmt jede Zeile woertlich: Anfuehrungszeichen wuerden Teil
+# des Werts, und mehrzeilige Eintraege (z.B. FCM_SERVICE_ACCOUNT_JSON)
+# bringen ihn durcheinander.
+DB_URL="$(sed -n 's/^[[:space:]]*DATABASE_URL[[:space:]]*=[[:space:]]*//p' "$BACKEND_ENV" | tail -n 1)"
+DB_URL="${DB_URL%"${DB_URL##*[![:space:]]}"}"        # Leerzeichen am Ende
+case "$DB_URL" in                                     # umschliessende Quotes
+    \"*\") DB_URL="${DB_URL#\"}"; DB_URL="${DB_URL%\"}" ;;
+    \'*\') DB_URL="${DB_URL#\'}"; DB_URL="${DB_URL%\'}" ;;
+esac
+
 BACKUP_FILE=""
-if [ "$DRY_RUN" = "1" ]; then
+if [ -z "$DB_URL" ] && [ -z "$MIGRATE_CMD" ]; then
+    # App ohne Datenbank (z.B. reiner In-Memory-Zustand): nichts zu sichern und
+    # nichts zu migrieren. "Ohne Sicherung wird nicht migriert" gilt weiter -
+    # sobald ein MIGRATE_CMD gesetzt ist, ist das Backup Pflicht.
+    log "Datenbank-Backup uebersprungen (keine DATABASE_URL und kein MIGRATE_CMD)"
+elif [ "$DRY_RUN" = "1" ]; then
+    log "Datenbank sichern (vor allen Migrationen)"
     echo "   [dry-run] mysqldump -> $BACKUP_DIR/${ENVIRONMENT}_<timestamp>.sql.gz"
 else
+    log "Datenbank sichern (vor allen Migrationen)"
     mkdir -p "$BACKUP_DIR"
-
-    # DATABASE_URL direkt aus der Datei lesen - NICHT ueber `docker --env-file`.
-    # Dessen Parser nimmt jede Zeile woertlich: Anfuehrungszeichen wuerden Teil
-    # des Werts, und mehrzeilige Eintraege (z.B. FCM_SERVICE_ACCOUNT_JSON)
-    # bringen ihn durcheinander.
-    DB_URL="$(sed -n 's/^[[:space:]]*DATABASE_URL[[:space:]]*=[[:space:]]*//p' "$BACKEND_ENV" | tail -n 1)"
-    DB_URL="${DB_URL%"${DB_URL##*[![:space:]]}"}"        # Leerzeichen am Ende
-    case "$DB_URL" in                                     # umschliessende Quotes
-        \"*\") DB_URL="${DB_URL#\"}"; DB_URL="${DB_URL%\"}" ;;
-        \'*\') DB_URL="${DB_URL#\'}"; DB_URL="${DB_URL%\'}" ;;
-    esac
 
     if [ -z "$DB_URL" ]; then
         fail "In $BACKEND_ENV wurde keine Zeile DATABASE_URL=... gefunden."
